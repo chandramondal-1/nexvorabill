@@ -572,8 +572,8 @@ const CreateInvoice = () => {
        const opt = {
           margin: 0,
           filename: `${invoice.invoiceNo}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
+          image: { type: 'jpeg', quality: 1.0 },
+          html2canvas: { scale: 5, useCORS: true },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
        };
        html2pdf().from(content).set(opt).save();
@@ -585,8 +585,8 @@ const CreateInvoice = () => {
            alert("html2canvas library is not loaded.");
            return;
        }
-       const canvas = await html2canvas(content, { scale: 2 });
-       const image = canvas.toDataURL("image/png");
+       const canvas = await html2canvas(content, { scale: 5, useCORS: true });
+       const image = canvas.toDataURL("image/png", 1.0);
        const link = document.createElement('a');
        link.href = image;
        link.download = `${invoice.invoiceNo}.png`;
