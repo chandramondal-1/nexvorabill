@@ -226,7 +226,7 @@ const Dashboard = () => {
 
 const Clients = () => {
   const { clients, setClients, saveClient } = useContext(AppContext);
-  const [newClient, setNewClient] = useState({ name: '', business: '', email: '', phone: '', address: '' });
+  const [newClient, setNewClient] = useState({ name: '', business: '', email: '', phone: '', address: '', isRecurring: false, recurringAmount: 500 });
 
   const addClient = () => {
     if(!newClient.name) return;

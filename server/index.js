@@ -50,7 +50,9 @@ const ClientSchema = new mongoose.Schema({
     business: String,
     email: String,
     phone: String,
-    address: String
+    address: String,
+    isRecurring: { type: Boolean, default: false },
+    recurringAmount: { type: Number, default: 500 }
 }, { timestamps: true });
 
 const SettingsSchema = new mongoose.Schema({
@@ -64,7 +66,9 @@ const SettingsSchema = new mongoose.Schema({
     gstPercent: Number,
     terms: String,
     logoUrl: String,
-    signatureText: String
+    signatureText: String,
+    paymentTermsDays: { type: Number, default: 7 },
+    serviceTemplates: { type: Array, default: [] }
 }, { timestamps: true });
 
 const Invoice = mongoose.model('Invoice', InvoiceSchema);
