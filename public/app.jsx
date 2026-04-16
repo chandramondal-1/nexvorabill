@@ -239,7 +239,7 @@ const Clients = () => {
       <h2 style={{ marginBottom: 24 }}>Clients</h2>
       <Card style={{ marginBottom: 32 }}>
         <h3>Add New Client</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+        <div className="form-grid-2-even">
           <Input label="Client Name" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
           <Input label="Business Name" value={newClient.business} onChange={e => setNewClient({...newClient, business: e.target.value})} />
           <Input label="Email" type="email" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} />
@@ -282,7 +282,7 @@ const SettingsView = () => {
   return (
     <div className="page-content">
       <h2 style={{ marginBottom: 24 }}>Settings</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      <div className="settings-grid">
         <Card>
            <h3 className="mb-4">Company Details</h3>
            <Input label="Company Name" value={settings.companyName} onChange={e => handleSettingsChange('companyName', e.target.value)} />
@@ -558,7 +558,7 @@ ${settings.phone} | ${settings.email}`
    };
 
    return (
-       <div className="page-content" style={{ display: 'flex', gap: '32px' }}>
+       <div className="page-content create-invoice-wrapper" style={{ display: 'flex', gap: '32px' }}>
            {/* Form Area */}
            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -573,7 +573,7 @@ ${settings.phone} | ${settings.email}`
 
                <Card>
                   <h3 className="mb-4">Client Details</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 1fr', gap: 16 }}>
+                  <div className="form-grid-2">
                      <div className="form-group">
                         <label className="form-label">Search / Select Client</label>
                         <select className="form-input" onChange={autofillClient} value={invoice.clientName}>
@@ -593,7 +593,7 @@ ${settings.phone} | ${settings.email}`
 
                <Card>
                    <h3 className="mb-4">Invoice Settings</h3>
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                   <div className="form-grid-3">
                        <Input label="Bill No" value={invoice.invoiceNo} onChange={e => setInvoice({...invoice, invoiceNo: e.target.value})} />
                        <Input label="Invoice Date" type="date" value={invoice.invoiceDate} onChange={e => setInvoice({...invoice, invoiceDate: e.target.value})} />
                        <Input label="Due Date" type="date" value={invoice.dueDate} onChange={e => setInvoice({...invoice, dueDate: e.target.value})} />
@@ -655,7 +655,7 @@ ${settings.phone} | ${settings.email}`
            </div>
            
            {/* Preview Area (Hidden visibly but ready for PDF, or shown scaled) */}
-           <div style={{ flex: '0 0 500px', alignSelf: 'flex-start', position: 'sticky', top: '90px' }}>
+           <div className="preview-wrapper" style={{ flex: '0 0 500px', alignSelf: 'flex-start', position: 'sticky', top: '90px' }}>
               <div style={{ position: 'relative', background: '#ececec', padding: '16px', borderRadius: '12px', overflow: 'hidden' }}>
                  <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>Live Preview</div>
                  <div style={{ transform: 'scale(0.55)', transformOrigin: 'top left', height: '297mm', width: '210mm', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', borderRadius: '4px', background: 'white' }}>
@@ -672,6 +672,7 @@ ${settings.phone} | ${settings.email}`
 
 const App = () => {
    const [currentView, setCurrentView] = useState('dashboard');
+   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
    const { theme, toggleTheme, settings } = useContext(AppContext);
 
    // Initialize Lucide icons on view change
@@ -691,22 +692,23 @@ const App = () => {
 
    return (
        <div className="app-container">
-           <aside className="sidebar">
+           <div className={`mobile-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)}></div>
+           <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
                <div className="sidebar-header">
                    <img src={settings.logoUrl || "logo.png"} alt="" style={{ height: '36px', objectFit: 'contain', borderRadius: '6px' }} onError={(e) => { e.target.style.display = 'none'; }} />
                    <div className="sidebar-logo-text" style={{ display: settings.companyName ? 'block' : 'none' }}>{settings.companyName}</div>
                </div>
                <nav className="nav-links">
-                   <a className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentView('dashboard')}>
+                   <a className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}>
                        <i data-lucide="layout-dashboard"></i> Dashboard
                    </a>
-                   <a className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => setCurrentView('create')}>
+                   <a className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => { setCurrentView('create'); setMobileMenuOpen(false); }}>
                        <i data-lucide="plus-circle"></i> Create Invoice
                    </a>
-                   <a className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => setCurrentView('clients')}>
+                   <a className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => { setCurrentView('clients'); setMobileMenuOpen(false); }}>
                        <i data-lucide="users"></i> Clients
                    </a>
-                   <a className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => setCurrentView('settings')}>
+                   <a className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => { setCurrentView('settings'); setMobileMenuOpen(false); }}>
                        <i data-lucide="settings"></i> Settings
                    </a>
                </nav>
@@ -717,6 +719,9 @@ const App = () => {
            
            <main className="main-content">
                <header className="topbar">
+                   <button className="btn-icon hamburger-btn" onClick={() => setMobileMenuOpen(true)}>
+                       <i data-lucide="menu"></i>
+                   </button>
                    <h1 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Overview</h1>
                    <button className="btn-icon" onClick={toggleTheme}>
                        <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>

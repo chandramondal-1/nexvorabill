@@ -388,3 +388,104 @@ body.dark tr:hover td {
 .mt-4 { margin-top: 16px; }
 .mb-4 { margin-bottom: 16px; }
 .p-6 { padding: 24px; }
+
+/* Desktop classes that we'll override */
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.form-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) 1fr; gap: 16px; }
+.form-grid-2-even { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+/* Mobile Menu Button */
+.hamburger-btn { display: none; margin-right: 16px; }
+.mobile-backdrop { display: none; }
+
+/* =========================================
+   Mobile Responsiveness
+   ========================================= */
+@media (max-width: 900px) {
+  /* Forms */
+  .form-grid-3, .form-grid-2, .form-grid-2-even, .settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  
+  /* Sidebar Drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    bottom: 0;
+    z-index: 100;
+    width: 280px;
+    box-shadow: none;
+  }
+  
+  .sidebar.open {
+    left: 0;
+    box-shadow: var(--shadow-lg);
+  }
+  
+  /* Backdrop */
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 90;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.3s ease;
+  }
+  
+  .mobile-backdrop.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  
+  /* Topbar */
+  .topbar {
+    padding: 0 16px;
+    justify-content: flex-start;
+  }
+  
+  .hamburger-btn {
+    display: flex;
+  }
+  
+  .topbar h1 {
+    flex: 1;
+    margin-right: 16px;
+  }
+  
+  /* Adjusting Content Padding */
+  .page-content {
+    padding: 16px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+  
+  /* Hide the huge live preview on small screens, use a "print" button instead */
+  .preview-wrapper {
+    display: none !important;
+  }
+  
+  .create-invoice-wrapper {
+    flex-direction: column;
+    gap: 16px !important;
+  }
+  
+  /* Table layout for mobile */
+  .table-container {
+    border-radius: var(--radius-md);
+  }
+}
