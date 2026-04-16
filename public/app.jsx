@@ -101,12 +101,71 @@ const AppProvider = ({ children }) => {
     } catch (e) { console.error("Error saving settings", e); }
   };
 
+  const exportData = () => {
+     const data = { invoices, clients, settings };
+     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement("a");
+     a.href = url;
+     a.download = `nexvora-backup-${new Date().toISOString().split('T')[0]}.json`;
+     a.click();
+  };
+
+  const exportCSV = () => {
+     const header = "Invoice No,Date,Due Date,Status,Client,Subtotal,Total\\n";
+     const rows = invoices.map(i => `${i.invoiceNo},${i.invoiceDate},${i.dueDate},${i.status},${(i.clientName || '').replace(/,/g, ' ')},${i.subtotal},${i.total}`).join('\\n');
+     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement("a");
+     a.href = url;
+     a.download = "invoices.csv";
+     a.click();
+  };
+
+  const generateMonthlyInvoices = async () => {
+      const recurring = clients.filter(c => c.isRecurring);
+      if(recurring.length === 0) return alert('No recurring clients found. Please mark some clients as recurring first.');
+      
+      let added = 0;
+      const todayDate = new Date();
+      const invoiceDateStr = todayDate.toISOString().split('T')[0];
+      
+      const terms = settings.paymentTermsDays || 7;
+      const dueDateObj = new Date(todayDate);
+      dueDateObj.setDate(dueDateObj.getDate() + terms);
+      const dueDateStr = dueDateObj.toISOString().split('T')[0];
+      
+      for(const rc of recurring) {
+         const newInv = {
+             id: Date.now() + Math.floor(Math.random() * 1000) + added,
+             invoiceNo: 'INV-' + Math.floor(1000 + Math.random() * 9000),
+             invoiceDate: invoiceDateStr,
+             dueDate: dueDateStr,
+             status: 'Sent',
+             clientName: rc.name,
+             clientEmail: rc.email || '',
+             businessName: rc.business || '',
+             clientAddress: rc.address || '',
+             clientPhone: rc.phone || '',
+             services: [ { desc: 'Monthly Maintenance', qty: 1, rate: rc.recurringAmount || 500, amount: rc.recurringAmount || 500 } ],
+             includeGst: false, discount: 0, advance: 0,
+             subtotal: rc.recurringAmount || 500,
+             total: rc.recurringAmount || 500,
+             balanceDue: rc.recurringAmount || 500
+         };
+         await saveInvoice(newInv);
+         added++;
+      }
+      alert(`Successfully generated ${added} monthly invoices!`);
+  };
+
   return (
     <AppContext.Provider value={{
       invoices, setInvoices, saveInvoice, getNextInvoiceNo,
       clients, setClients, saveClient,
       settings, setSettings, saveSettings,
-      theme, toggleTheme, loading
+      theme, toggleTheme, loading,
+      exportData, exportCSV, generateMonthlyInvoices
     }}>
       {loading ? <div style={{padding: '50px', textAlign: 'center'}}>Loading data...</div> : children}
     </AppContext.Provider>
@@ -310,7 +369,7 @@ const InvoicePreview = React.forwardRef(({ data, settings }, ref) => {
     <div ref={ref} className="invoice-print-container" style={{ filter: 'none', WebkitFontSmoothing: 'antialiased', fontFamily: 'Arial, sans-serif', color: 'black', background: 'white', width: '210mm', height: '296mm', boxSizing: 'border-box', overflow: 'hidden', padding: '12mm 15mm' }}>
       
       {/* Watermark */}
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', opacity: 0.04, zIndex: 0, width: '400px', height: '400px', backgroundImage: `url(${settings.logoUrl || 'logo.png'})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }}></div>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', opacity: 0.04, zIndex: 0, width: '400px', height: '400px', backgroundImage: `url('bill_background_logo.png')`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }}></div>
 
       {/* Content wrapper to put over watermark */}
       <div style={{ position: 'relative', zIndex: 1, height: '100%' }}>
