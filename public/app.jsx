@@ -16,21 +16,68 @@ const INITIAL_SETTINGS = {
   signatureText: 'Arif Hussain and Surya Mondal\nFounder, Nexvora'
 };
 
+// --- Firebase Configuration ---
+// REPLACE THESE WITH YOUR ACTUAL FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const auth = firebase.auth();
+
 const AppProvider = ({ children }) => {
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
   const [theme, setTheme] = useState(() => localStorage.getItem('nex_theme') || 'light');
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('nex_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Monitor Auth State (Firebase & Local)
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((fbUser) => {
+      if (fbUser) {
+        setUser(fbUser);
+      } else {
+        // Only clear if not a local user
+        const localUser = localStorage.getItem('nex_user');
+        if (!localUser) setUser(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('nex_user');
+    auth.signOut();
+    setUser(null);
+  };
 
   // Load from API on mount
   useEffect(() => {
     const fetchData = async () => {
+      if (!user) return;
       try {
+        const idToken = await user.getIdToken();
+        const headers = { 'Authorization': `Bearer ${idToken}` };
+        
         const [invRes, cliRes, setRes] = await Promise.all([
-          fetch('/api/invoices'),
-          fetch('/api/clients'),
-          fetch('/api/settings')
+          fetch('/api/invoices', { headers }),
+          fetch('/api/clients', { headers }),
+          fetch('/api/settings', { headers })
         ]);
         if (invRes.ok) setInvoices(await invRes.json());
         if (cliRes.ok) setClients(await cliRes.json());
@@ -47,7 +94,7 @@ const AppProvider = ({ children }) => {
       }
     };
     fetchData();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     document.body.className = theme;
@@ -62,9 +109,13 @@ const AppProvider = ({ children }) => {
 
   const saveInvoice = async (invoiceObj) => {
     try {
+      const idToken = await user.getIdToken();
       await fetch('/api/invoices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify(invoiceObj)
       });
       setInvoices(prev => {
@@ -81,9 +132,13 @@ const AppProvider = ({ children }) => {
 
   const saveClient = async (clientObj) => {
     try {
+      const idToken = await user.getIdToken();
       await fetch('/api/clients', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify(clientObj)
       });
       setClients(prev => [clientObj, ...prev]);
@@ -92,9 +147,13 @@ const AppProvider = ({ children }) => {
 
   const saveSettings = async (newSettings) => {
     try {
+      const idToken = await user.getIdToken();
       await fetch('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify(newSettings)
       });
       setSettings(prev => ({ ...prev, ...newSettings }));
@@ -164,10 +223,13 @@ const AppProvider = ({ children }) => {
       invoices, setInvoices, saveInvoice, getNextInvoiceNo,
       clients, setClients, saveClient,
       settings, setSettings, saveSettings,
-      theme, toggleTheme, loading,
+      theme, toggleTheme, loading, authLoading,
+      user, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
+      signup: (email, pass) => auth.createUserWithEmailAndPassword(email, pass),
+      logout,
       exportData, exportCSV, generateMonthlyInvoices
     }}>
-      {loading ? <div style={{padding: '50px', textAlign: 'center'}}>Loading data...</div> : children}
+      {authLoading ? <div className="loading-screen">Verifying session...</div> : (loading ? <div style={{padding: '50px', textAlign: 'center'}}>Loading data...</div> : children)}
     </AppContext.Provider>
   );
 };
@@ -194,6 +256,92 @@ const Button = ({ children, variant="primary", icon: Icon, onClick, className=""
     {children}
   </button>
 );
+
+// ==== AUTHENTICATION PAGE ====
+
+const Login = () => {
+    const { login, signup, theme } = useContext(AppContext);
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [authWait, setAuthWait] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setAuthWait(true);
+        try {
+            // Check for Hardcoded Admin Credentials
+            if (email === 'Chandra' && password === '123456789') {
+                const localUser = { email: 'Chandra', uid: 'admin-chandra', isLocal: true };
+                localStorage.setItem('nex_user', JSON.stringify(localUser));
+                setUser(localUser);
+                return;
+            }
+
+            if (isLogin) {
+                await login(email, password);
+            } else {
+                await signup(email, password);
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setAuthWait(false);
+        }
+    };
+
+    return (
+        <div className="login-container">
+            <div className="login-box card">
+                <div className="login-header">
+                    <div className="login-logo">
+                        <i data-lucide="shield-check" style={{ width: 48, height: 48, color: 'var(--primary)' }}></i>
+                    </div>
+                    <h2>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+                    <p className="text-secondary">{isLogin ? 'Sign in to access your dashboard' : 'Get started with Nexvora'}</p>
+                    <p style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>System: <b>Chandra</b> / <b>123456789</b></p>
+                </div>
+
+                <form className="login-form" onSubmit={handleSubmit}>
+                    <Input 
+                        label="User ID / Email" 
+                        placeholder="Chandra or email@example.com" 
+                        value={email} 
+                        onChange={e => setEmail(e.target.value)} 
+                        required 
+                    />
+                    <Input 
+                        label="Password" 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        required 
+                    />
+                    
+                    {error && <div className="auth-error">{error}</div>}
+
+                    <Button type="submit" className="w-full" disabled={authWait}>
+                        {authWait ? <i data-lucide="loader" className="animate-spin"></i> : (isLogin ? 'Sign In' : 'Sign Up')}
+                    </Button>
+                </form>
+
+                <div className="login-footer">
+                    <span>{isLogin ? "Don't have an account?" : "Already have an account?"}</span>
+                    <button className="link-btn" onClick={() => setIsLogin(!isLogin)}>
+                        {isLogin ? 'Sign Up' : 'Sign In'}
+                    </button>
+                </div>
+            </div>
+            
+            {/* Design elements */}
+            <div className="login-decor login-decor-1"></div>
+            <div className="login-decor login-decor-2"></div>
+        </div>
+    );
+};
 
 // ==== VIEWS ====
 
@@ -284,14 +432,84 @@ const Dashboard = () => {
 };
 
 const Clients = () => {
-  const { clients, setClients, saveClient } = useContext(AppContext);
+  const { clients, invoices, saveClient } = useContext(AppContext);
   const [newClient, setNewClient] = useState({ name: '', business: '', email: '', phone: '', address: '', isRecurring: false, recurringAmount: 500 });
+  const [selectedClient, setSelectedClient] = useState(null);
 
   const addClient = () => {
     if(!newClient.name) return;
     saveClient({ ...newClient, id: Date.now() });
     setNewClient({ name: '', business: '', email: '', phone: '', address: '' });
   };
+
+  const clientInvoices = useMemo(() => {
+    if(!selectedClient) return [];
+    return invoices.filter(inv => inv.clientName === selectedClient.name);
+  }, [selectedClient, invoices]);
+
+  if (selectedClient) {
+    return (
+        <div className="page-content">
+            <div className="flex-row justify-between mb-6">
+                <div className="flex-row gap-4">
+                    <Button variant="secondary" onClick={() => setSelectedClient(null)} icon="arrow-left">Back</Button>
+                    <h2>History for {selectedClient.name}</h2>
+                </div>
+            </div>
+
+            <div className="grid-cards mb-6">
+                <Card className="stat-card">
+                    <div className="stat-info">
+                        <div className="form-label">Total Bills</div>
+                        <div className="stat-val">{clientInvoices.length}</div>
+                    </div>
+                </Card>
+                <Card className="stat-card">
+                    <div className="stat-info">
+                        <div className="form-label">Total Billed</div>
+                        <div className="stat-val">₹{clientInvoices.reduce((a, b) => a + b.total, 0).toLocaleString()}</div>
+                    </div>
+                </Card>
+                <Card className="stat-card">
+                    <div className="stat-info">
+                        <div className="form-label">Balance Due</div>
+                        <div className="stat-val text-danger">₹{clientInvoices.reduce((a, b) => a + b.balanceDue, 0).toLocaleString()}</div>
+                    </div>
+                </Card>
+            </div>
+
+            <Card>
+                <h3 className="mb-4">Bill History</h3>
+                <div className="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Invoice No</th>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Balance Due</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {clientInvoices.length === 0 ? (
+                                <tr><td colSpan="5" style={{textAlign: 'center', padding: '32px'}}>No bill history found for this client.</td></tr>
+                            ) : clientInvoices.map(inv => (
+                                <tr key={inv.id}>
+                                    <td>{inv.invoiceNo}</td>
+                                    <td>{inv.invoiceDate}</td>
+                                    <td>₹{inv.total.toLocaleString()}</td>
+                                    <td><span className={`badge badge-${inv.status.toLowerCase()}`}>{inv.status}</span></td>
+                                    <td>₹{inv.balanceDue.toLocaleString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </div>
+    );
+  }
 
   return (
     <div className="page-content">
@@ -314,7 +532,7 @@ const Clients = () => {
         <h3 style={{ marginBottom: 16 }}>Client List</h3>
         <div className="table-container">
           <table>
-            <thead><tr><th>Name</th><th>Business</th><th>Email</th><th>Phone</th></tr></thead>
+            <thead><tr><th>Name</th><th>Business</th><th>Email</th><th>Phone</th><th width="120">Actions</th></tr></thead>
             <tbody>
               {clients.map(c => (
                 <tr key={c.id}>
@@ -322,6 +540,9 @@ const Clients = () => {
                    <td>{c.business}</td>
                    <td>{c.email}</td>
                    <td>{c.phone}</td>
+                   <td>
+                       <Button variant="secondary" onClick={() => setSelectedClient(c)}>View History</Button>
+                   </td>
                 </tr>
               ))}
             </tbody>
@@ -616,9 +837,13 @@ const CreateInvoice = () => {
            const subject = `Invoice ${invoice.invoiceNo} from ${settings.companyName}`;
            const text = `Dear ${invoice.clientName || 'Client'},\n\nPlease find the details for invoice ${invoice.invoiceNo} attached as a PDF.\n\nTotal Amount: ₹${invoice.total.toFixed(2)}\nBalance Due: ₹${invoice.balanceDue.toFixed(2)}\nDue Date: ${invoice.dueDate}\n\nThank you for your business!\n\nBest regards,\n${settings.companyName}\n${settings.phone} | ${settings.email}`;
            
+           const idToken = await user.getIdToken();
            const res = await fetch('/api/send-email', {
                method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
+               headers: { 
+                   'Content-Type': 'application/json',
+                   'Authorization': `Bearer ${idToken}`
+               },
                body: JSON.stringify({
                    to: invoice.clientEmail,
                    subject,
@@ -761,7 +986,7 @@ const CreateInvoice = () => {
 const App = () => {
    const [currentView, setCurrentView] = useState('dashboard');
    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-   const { theme, toggleTheme, settings } = useContext(AppContext);
+   const { theme, toggleTheme, settings, user, logout } = useContext(AppContext);
 
    // Initialize Lucide icons on view change
    useEffect(() => {
@@ -778,47 +1003,58 @@ const App = () => {
        }
    };
 
-   return (
-       <div className="app-container">
-           <div className={`mobile-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)}></div>
-           <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-               <div className="sidebar-header">
-                   <img src={settings.logoUrl || "logo.png"} alt="" style={{ height: '36px', objectFit: 'contain', borderRadius: '6px' }} onError={(e) => { e.target.style.display = 'none'; }} />
-                   <div className="sidebar-logo-text" style={{ display: settings.companyName ? 'block' : 'none' }}>{settings.companyName}</div>
-               </div>
-               <nav className="nav-links">
-                   <a className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}>
-                       <i data-lucide="layout-dashboard"></i> Dashboard
-                   </a>
-                   <a className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => { setCurrentView('create'); setMobileMenuOpen(false); }}>
-                       <i data-lucide="plus-circle"></i> Create Invoice
-                   </a>
-                   <a className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => { setCurrentView('clients'); setMobileMenuOpen(false); }}>
-                       <i data-lucide="users"></i> Clients
-                   </a>
-                   <a className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => { setCurrentView('settings'); setMobileMenuOpen(false); }}>
-                       <i data-lucide="settings"></i> Settings
-                   </a>
-               </nav>
-               <div style={{ padding: '24px', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <p>Nexvora Invoice v1.0</p>
-               </div>
-           </aside>
-           
-           <main className="main-content">
-               <header className="topbar">
-                   <button className="btn-icon hamburger-btn" onClick={() => setMobileMenuOpen(true)}>
-                       <i data-lucide="menu"></i>
-                   </button>
-                   <h1 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Overview</h1>
-                   <button className="btn-icon" onClick={toggleTheme}>
-                       <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>
-                   </button>
-               </header>
-               {renderView()}
-           </main>
-       </div>
-   );
+    if (!user) {
+        return <Login />;
+    }
+
+    return (
+        <div className="app-container">
+            <div className={`mobile-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)}></div>
+            <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+                <div className="sidebar-header">
+                    <img src={settings.logoUrl || "logo.png"} alt="" style={{ height: '36px', objectFit: 'contain', borderRadius: '6px' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                    <div className="sidebar-logo-text" style={{ display: settings.companyName ? 'block' : 'none' }}>{settings.companyName}</div>
+                </div>
+                <nav className="nav-links" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <a className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}>
+                        <i data-lucide="layout-dashboard"></i> Dashboard
+                    </a>
+                    <a className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => { setCurrentView('create'); setMobileMenuOpen(false); }}>
+                        <i data-lucide="plus-circle"></i> Create Invoice
+                    </a>
+                    <a className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => { setCurrentView('clients'); setMobileMenuOpen(false); }}>
+                        <i data-lucide="users"></i> Clients
+                    </a>
+                    <a className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => { setCurrentView('settings'); setMobileMenuOpen(false); }}>
+                        <i data-lucide="settings"></i> Settings
+                    </a>
+                    <div style={{ flex: 1 }}></div>
+                    <a className="nav-item text-danger" onClick={logout} style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                        <i data-lucide="log-out"></i> Sign Out
+                    </a>
+                </nav>
+                <div style={{ padding: '24px', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                     <p>Nexvora Invoice v1.0</p>
+                </div>
+            </aside>
+            
+            <main className="main-content">
+                <header className="topbar">
+                    <button className="btn-icon hamburger-btn" onClick={() => setMobileMenuOpen(true)}>
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <span className="text-secondary" style={{ fontSize: '0.85rem' }}>{user.email}</span>
+                        <h1 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Overview</h1>
+                    </div>
+                    <button className="btn-icon" onClick={toggleTheme}>
+                        <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>
+                    </button>
+                </header>
+                {renderView()}
+            </main>
+        </div>
+    );
 };
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

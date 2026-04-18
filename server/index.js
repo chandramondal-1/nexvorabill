@@ -2,7 +2,22 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
+const admin = require('firebase-admin');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Initialize Firebase Admin
+if (process.env.FIREBASE_PROJECT_ID) {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        })
+    });
+    console.log('Firebase Admin initialized');
+} else {
+    console.warn('WARNING: Firebase credentials not set in .env. Authentication will be bypassed!');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -75,10 +90,33 @@ const Invoice = mongoose.model('Invoice', InvoiceSchema);
 const Client = mongoose.model('Client', ClientSchema);
 const Settings = mongoose.model('Settings', SettingsSchema);
 
+// ================= MIDDLEWARE =================
+
+const authenticate = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!process.env.FIREBASE_PROJECT_ID) {
+        return next(); // Bypass if not configured
+    }
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('Error verifying Firebase ID token:', error);
+        res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+};
+
 // ================= API ROUTES =================
 
 // ----- Invoices -----
-app.get('/api/invoices', async (req, res) => {
+app.get('/api/invoices', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json([]);
     try {
         const invoices = await Invoice.find().sort({ createdAt: -1 });
@@ -88,7 +126,7 @@ app.get('/api/invoices', async (req, res) => {
     }
 });
 
-app.post('/api/invoices', async (req, res) => {
+app.post('/api/invoices', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({ success: true, invoice: req.body });
     const newInvoice = req.body;
     
@@ -105,7 +143,7 @@ app.post('/api/invoices', async (req, res) => {
 });
 
 // ----- Clients -----
-app.get('/api/clients', async (req, res) => {
+app.get('/api/clients', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json([]);
     try {
         const clients = await Client.find().sort({ createdAt: -1 });
@@ -115,7 +153,7 @@ app.get('/api/clients', async (req, res) => {
     }
 });
 
-app.post('/api/clients', async (req, res) => {
+app.post('/api/clients', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({ success: true, client: req.body });
     const newClient = req.body;
     try {
@@ -131,7 +169,7 @@ app.post('/api/clients', async (req, res) => {
 });
 
 // ----- Settings -----
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({});
     try {
         const settings = await Settings.findOne({ singletonId: 'default' });
@@ -141,7 +179,7 @@ app.get('/api/settings', async (req, res) => {
     }
 });
 
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json({ success: true, settings: req.body });
     try {
         const settings = await Settings.findOneAndUpdate(
