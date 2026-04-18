@@ -27,11 +27,22 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// Initialize Firebase only if config is valid
+let auth;
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  auth = firebase.auth();
+} else {
+  // Mock auth object to prevent errors when Firebase is not set up
+  auth = {
+    onAuthStateChanged: (cb) => { cb(null); return () => {}; },
+    signInWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
+    createUserWithEmailAndPassword: () => Promise.reject(new Error("Firebase not configured")),
+    signOut: () => Promise.resolve()
+  };
 }
-const auth = firebase.auth();
 
 const AppProvider = ({ children }) => {
   const [invoices, setInvoices] = useState([]);
@@ -310,7 +321,6 @@ const Login = () => {
                     </div>
                     <h2>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
                     <p className="text-secondary">{isLogin ? 'Sign in to access your dashboard' : 'Get started with Nexvora'}</p>
-                    <p style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>System: <b>Chandra</b> / <b>123456789</b></p>
                 </div>
 
                 <form className="login-form" onSubmit={handleSubmit}>
