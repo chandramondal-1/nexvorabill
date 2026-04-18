@@ -56,6 +56,7 @@ const AppProvider = ({ children }) => {
   });
   const [authLoading, setAuthLoading] = useState(true);
   const [dbConnected, setDbConnected] = useState(true);
+  const [serverStatus, setServerStatus] = useState('online'); // 'online', 'unreachable', 'no-db'
 
   // Monitor Auth State (Firebase & Local)
   useEffect(() => {
@@ -86,8 +87,15 @@ const AppProvider = ({ children }) => {
             if (hRes.ok) {
                 const hData = await hRes.json();
                 setDbConnected(hData.dbConnected);
+                setServerStatus(hData.dbConnected ? 'online' : 'no-db');
+            } else {
+                setServerStatus('unreachable');
+                setDbConnected(false);
             }
-        } catch(e) { setDbConnected(false); }
+        } catch(e) { 
+            setServerStatus('unreachable');
+            setDbConnected(false); 
+        }
     };
     checkHealth();
 
@@ -325,7 +333,7 @@ const AppProvider = ({ children }) => {
       clients, setClients, saveClient,
       settings, setSettings, saveSettings,
       theme, toggleTheme, loading, authLoading,
-      user, setUser, dbConnected, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
+      user, setUser, dbConnected, serverStatus, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
       signup: (email, pass) => auth.createUserWithEmailAndPassword(email, pass),
       logout,
       exportData, exportCSV, generateMonthlyInvoices
@@ -1125,16 +1133,20 @@ const App = () => {
 
     return (
         <div className="app-container">
-            {!dbConnected && (
+            {serverStatus !== 'online' && (
                  <div className="warning-banner" style={{
                      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
-                     background: '#ef4444', color: 'white', padding: '12px',
+                     background: serverStatus === 'unreachable' ? '#991b1b' : '#ef4444', 
+                     color: 'white', padding: '12px',
                      textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem',
                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                  }}>
-                     <i data-lucide="shield-alert" style={{ width: 16 }}></i>
-                     CLOUD STORAGE DISCONNECTED: Data is currently saving to this browser only. Please configure your Firebase Keys on Render.
+                     <i data-lucide={serverStatus === 'unreachable' ? 'server-off' : 'shield-alert'} style={{ width: 16 }}></i>
+                     {serverStatus === 'unreachable' 
+                        ? "CRITICAL: SERVER IS CURRENTLY DOWN/CRASHED. Your data is being safely stored in this browser ONLY." 
+                        : "CLOUD STORAGE DISCONNECTED: Data is currently saving to this browser only. Please configure your Firebase Keys on Render."
+                     }
                  </div>
             )}
             <div className={`mobile-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)}></div>
