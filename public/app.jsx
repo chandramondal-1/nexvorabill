@@ -139,11 +139,17 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
-      await fetch('/api/invoices', {
+      const res = await fetch('/api/invoices', {
         method: 'POST',
         headers,
         body: JSON.stringify(invoiceObj)
       });
+
+      if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to save invoice to cloud');
+      }
+
       setInvoices(prev => {
         const idx = prev.findIndex(inv => inv.id === invoiceObj.id);
         if(idx >= 0) {
@@ -153,7 +159,12 @@ const AppProvider = ({ children }) => {
         }
         return [invoiceObj, ...prev];
       });
-    } catch (e) { console.error("Error saving invoice", e); }
+      return true;
+    } catch (e) { 
+      console.error("Error saving invoice", e); 
+      alert("⚠️ CLOUD SAVE FAILED: " + e.message + "\n\nYour data may not be saved permanently. Please check your internet or server configuration.");
+      return false;
+    }
   };
 
   const saveClient = async (clientObj) => {
@@ -167,13 +178,24 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
-      await fetch('/api/clients', {
+      const res = await fetch('/api/clients', {
         method: 'POST',
         headers,
         body: JSON.stringify(clientObj)
       });
+      
+      if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to save client to cloud');
+      }
+
       setClients(prev => [clientObj, ...prev]);
-    } catch (e) { console.error("Error saving client", e); }
+      return true;
+    } catch (e) { 
+      console.error("Error saving client", e); 
+      alert("⚠️ CLOUD SAVE FAILED: " + e.message + "\n\nYour data may not be saved permanently.");
+      return false;
+    }
   };
 
   const saveSettings = async (newSettings) => {
@@ -187,13 +209,24 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
-      await fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PUT',
         headers,
         body: JSON.stringify(newSettings)
       });
+
+      if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to save settings to cloud');
+      }
+
       setSettings(prev => ({ ...prev, ...newSettings }));
-    } catch (e) { console.error("Error saving settings", e); }
+      return true;
+    } catch (e) { 
+        console.error("Error saving settings", e); 
+        alert("⚠️ CLOUD SAVE FAILED: " + e.message);
+        return false;
+    }
   };
 
   const exportData = () => {
@@ -1084,7 +1117,22 @@ const App = () => {
                         <i data-lucide="log-out"></i> Sign Out
                     </a>
                 </nav>
-                <div style={{ padding: '24px', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)' }}>
+                     <div style={{ 
+                         padding: '10px 14px', 
+                         borderRadius: 'var(--radius-sm)', 
+                         background: 'rgba(52, 211, 153, 0.1)', 
+                         color: 'rgb(16, 185, 129)',
+                         display: 'flex',
+                         alignItems: 'center',
+                         gap: '8px',
+                         fontSize: '0.8rem'
+                     }}>
+                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'currentColor' }}></div>
+                         Cloud Sync Active
+                     </div>
+                </div>
+                <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                      <p>Nexvora Invoice v1.0</p>
                 </div>
             </aside>

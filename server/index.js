@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Initialize Firebase Admin
+let db;
 if (process.env.FIREBASE_PROJECT_ID) {
     admin.initializeApp({
         credential: admin.credential.cert({
@@ -15,9 +16,10 @@ if (process.env.FIREBASE_PROJECT_ID) {
             privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
         })
     });
-    console.log('Firebase Admin initialized');
+    db = admin.firestore();
+    console.log('Firebase Admin and Firestore initialized');
 } else {
-    console.warn('WARNING: Firebase credentials not set in .env. Authentication will be bypassed!');
+    console.warn('WARNING: Firebase credentials not set in .env. Authentication will be bypassed and data will NOT be saved permanently!');
 }
 
 const app = express();
@@ -144,78 +146,83 @@ app.post('/api/login', (req, res) => {
 
 // ----- Invoices -----
 app.get('/api/invoices', authenticate, async (req, res) => {
-    if(!MONGODB_URI) return res.json([]);
+    if(!db) return res.json([]);
     try {
-        const invoices = await Invoice.find({ userId: req.user.uid }).sort({ createdAt: -1 });
+        const snapshot = await db.collection('invoices')
+            .where('userId', '==', req.user.uid)
+            .orderBy('createdAt', 'desc')
+            .get();
+        const invoices = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id }));
         res.json(invoices);
     } catch (e) {
+        console.error("Firestore GET error:", e);
         res.status(500).json({ error: e.message });
     }
 });
 
 app.post('/api/invoices', authenticate, async (req, res) => {
-    if(!MONGODB_URI) return res.json({ success: true, invoice: req.body });
-    const newInvoice = { ...req.body, userId: req.user.uid };
+    if(!db) return res.json({ success: true, invoice: req.body });
+    const invoice = { ...req.body, userId: req.user.uid, updatedAt: new Date(), createdAt: new Date() };
     
     try {
-        await Invoice.findOneAndUpdate(
-            { id: newInvoice.id, userId: req.user.uid },
-            newInvoice,
-            { upsert: true, new: true }
-        );
-        res.json({ success: true, invoice: newInvoice });
+        const docRef = db.collection('invoices').doc(String(invoice.id));
+        await docRef.set(invoice, { merge: true });
+        res.json({ success: true, invoice });
     } catch (e) {
+        console.error("Firestore POST error:", e);
         res.status(500).json({ error: e.message });
     }
 });
 
 // ----- Clients -----
 app.get('/api/clients', authenticate, async (req, res) => {
-    if(!MONGODB_URI) return res.json([]);
+    if(!db) return res.json([]);
     try {
-        const clients = await Client.find({ userId: req.user.uid }).sort({ createdAt: -1 });
+        const snapshot = await db.collection('clients')
+            .where('userId', '==', req.user.uid)
+            .orderBy('createdAt', 'desc')
+            .get();
+        const clients = snapshot.docs.map(doc => ({ ...doc.data(), _id: doc.id }));
         res.json(clients);
     } catch (e) {
+        console.error("Firestore GET error:", e);
         res.status(500).json({ error: e.message });
     }
 });
 
 app.post('/api/clients', authenticate, async (req, res) => {
-    if(!MONGODB_URI) return res.json({ success: true, client: req.body });
-    const newClient = { ...req.body, userId: req.user.uid };
+    if(!db) return res.json({ success: true, client: req.body });
+    const client = { ...req.body, userId: req.user.uid, updatedAt: new Date(), createdAt: new Date() };
     try {
-        await Client.findOneAndUpdate(
-            { id: newClient.id, userId: req.user.uid },
-            newClient,
-            { upsert: true, new: true }
-        );
-        res.json({ success: true, client: newClient });
+        const docRef = db.collection('clients').doc(String(client.id));
+        await docRef.set(client, { merge: true });
+        res.json({ success: true, client });
     } catch (e) {
+        console.error("Firestore POST error:", e);
         res.status(500).json({ error: e.message });
     }
 });
 
 // ----- Settings -----
 app.get('/api/settings', authenticate, async (req, res) => {
-    if(!MONGODB_URI) return res.json({});
+    if(!db) return res.json({});
     try {
-        const settings = await Settings.findOne({ singletonId: 'default', userId: req.user.uid });
-        res.json(settings || {});
+        const doc = await db.collection('settings').doc(req.user.uid).get();
+        res.json(doc.exists ? doc.data() : {});
     } catch (e) {
+        console.error("Firestore GET error:", e);
         res.status(500).json({ error: e.message });
     }
 });
 
 app.put('/api/settings', authenticate, async (req, res) => {
-    if(!MONGODB_URI) return res.json({ success: true, settings: req.body });
+    if(!db) return res.json({ success: true, settings: req.body });
     try {
-        const settings = await Settings.findOneAndUpdate(
-            { singletonId: 'default', userId: req.user.uid },
-            { ...req.body, userId: req.user.uid },
-            { upsert: true, new: true }
-        );
+        const settings = { ...req.body, userId: req.user.uid, updatedAt: new Date() };
+        await db.collection('settings').doc(req.user.uid).set(settings, { merge: true });
         res.json({ success: true, settings });
     } catch (e) {
+        console.error("Firestore PUT error:", e);
         res.status(500).json({ error: e.message });
     }
 });
