@@ -55,6 +55,7 @@ const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
   const [authLoading, setAuthLoading] = useState(true);
+  const [dbConnected, setDbConnected] = useState(true);
 
   // Monitor Auth State (Firebase & Local)
   useEffect(() => {
@@ -79,11 +80,29 @@ const AppProvider = ({ children }) => {
 
   // Load from API on mount
   useEffect(() => {
+    const checkHealth = async () => {
+        try {
+            const hRes = await fetch('/api/health');
+            if (hRes.ok) {
+                const hData = await hRes.json();
+                setDbConnected(hData.dbConnected);
+            }
+        } catch(e) { setDbConnected(false); }
+    };
+    checkHealth();
+
     const fetchData = async () => {
       if (!user) {
         setLoading(false);
         return;
       }
+      
+      // Load LOCAL BACKUP first (so it's instant)
+      const localInv = localStorage.getItem(`nex_backup_inv_${user.uid}`);
+      const localCli = localStorage.getItem(`nex_backup_cli_${user.uid}`);
+      if (localInv) setInvoices(JSON.parse(localInv));
+      if (localCli) setClients(JSON.parse(localCli));
+
       try {
         let headers = {};
         if (user) {
@@ -100,8 +119,17 @@ const AppProvider = ({ children }) => {
           fetch('/api/clients', { headers }),
           fetch('/api/settings', { headers })
         ]);
-        if (invRes.ok) setInvoices(await invRes.json());
-        if (cliRes.ok) setClients(await cliRes.json());
+
+        if (invRes.ok) {
+            const cloudInv = await invRes.json();
+            setInvoices(cloudInv);
+            localStorage.setItem(`nex_backup_inv_${user.uid}`, JSON.stringify(cloudInv));
+        }
+        if (cliRes.ok) {
+            const cloudCli = await cliRes.json();
+            setClients(cloudCli);
+            localStorage.setItem(`nex_backup_cli_${user.uid}`, JSON.stringify(cloudCli));
+        }
         if (setRes.ok) {
            const fetchedSettings = await setRes.json();
            if (Object.keys(fetchedSettings).length > 0) {
@@ -139,6 +167,15 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
+      // ALWAYS Save to Local Backup first
+      setInvoices(prev => {
+        const idx = prev.findIndex(inv => inv.id === invoiceObj.id);
+        const updated = idx >= 0 ? [...prev] : [invoiceObj, ...prev];
+        if (idx >= 0) updated[idx] = invoiceObj;
+        localStorage.setItem(`nex_backup_inv_${user.uid}`, JSON.stringify(updated));
+        return updated;
+      });
+
       const res = await fetch('/api/invoices', {
         method: 'POST',
         headers,
@@ -147,22 +184,12 @@ const AppProvider = ({ children }) => {
 
       if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to save invoice to cloud');
+          throw new Error(errorData.error || 'Cloud sync failed');
       }
-
-      setInvoices(prev => {
-        const idx = prev.findIndex(inv => inv.id === invoiceObj.id);
-        if(idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = invoiceObj;
-          return updated;
-        }
-        return [invoiceObj, ...prev];
-      });
       return true;
     } catch (e) { 
-      console.error("Error saving invoice", e); 
-      alert("⚠️ CLOUD SAVE FAILED: " + e.message + "\n\nYour data may not be saved permanently. Please check your internet or server configuration.");
+      console.error("Cloud Sync failed", e); 
+      // We don't alert here anymore because the banner will show the status
       return false;
     }
   };
@@ -178,6 +205,13 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
+      // ALWAYS Save to Local Backup first
+      setClients(prev => {
+          const updated = [clientObj, ...prev];
+          localStorage.setItem(`nex_backup_cli_${user.uid}`, JSON.stringify(updated));
+          return updated;
+      });
+
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers,
@@ -186,14 +220,12 @@ const AppProvider = ({ children }) => {
       
       if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to save client to cloud');
+          throw new Error(errorData.error || 'Cloud sync failed');
       }
 
-      setClients(prev => [clientObj, ...prev]);
       return true;
     } catch (e) { 
-      console.error("Error saving client", e); 
-      alert("⚠️ CLOUD SAVE FAILED: " + e.message + "\n\nYour data may not be saved permanently.");
+      console.error("Cloud Sync failed", e); 
       return false;
     }
   };
@@ -240,8 +272,8 @@ const AppProvider = ({ children }) => {
   };
 
   const exportCSV = () => {
-     const header = "Invoice No,Date,Due Date,Status,Client,Subtotal,Total\\n";
-     const rows = invoices.map(i => `${i.invoiceNo},${i.invoiceDate},${i.dueDate},${i.status},${(i.clientName || '').replace(/,/g, ' ')},${i.subtotal},${i.total}`).join('\\n');
+     const header = "Invoice No,Date,Due Date,Status,Client,Subtotal,Total\n";
+     const rows = invoices.map(i => `${i.invoiceNo},${i.invoiceDate},${i.dueDate},${i.status},${(i.clientName || '').replace(/,/g, ' ')},${i.subtotal},${i.total}`).join('\n');
      const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
      const url = URL.createObjectURL(blob);
      const a = document.createElement("a");
@@ -293,7 +325,7 @@ const AppProvider = ({ children }) => {
       clients, setClients, saveClient,
       settings, setSettings, saveSettings,
       theme, toggleTheme, loading, authLoading,
-      user, setUser, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
+      user, setUser, dbConnected, login: (email, pass) => auth.signInWithEmailAndPassword(email, pass),
       signup: (email, pass) => auth.createUserWithEmailAndPassword(email, pass),
       logout,
       exportData, exportCSV, generateMonthlyInvoices
@@ -1070,7 +1102,7 @@ const CreateInvoice = () => {
 const App = () => {
    const [currentView, setCurrentView] = useState('dashboard');
    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-   const { theme, toggleTheme, settings, user, logout } = useContext(AppContext);
+   const { theme, toggleTheme, settings, user, logout, dbConnected } = useContext(AppContext);
 
    // Initialize Lucide icons on view change
    useEffect(() => {
@@ -1093,8 +1125,20 @@ const App = () => {
 
     return (
         <div className="app-container">
+            {!dbConnected && (
+                 <div className="warning-banner" style={{
+                     position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+                     background: '#ef4444', color: 'white', padding: '12px',
+                     textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem',
+                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                     boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                 }}>
+                     <i data-lucide="shield-alert" style={{ width: 16 }}></i>
+                     CLOUD STORAGE DISCONNECTED: Data is currently saving to this browser only. Please configure your Firebase Keys on Render.
+                 </div>
+            )}
             <div className={`mobile-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)}></div>
-            <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+            <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} style={{ marginTop: !dbConnected ? '45px' : '0' }}>
                 <div className="sidebar-header">
                     <img src={settings.logoUrl || "logo.png"} alt="" style={{ height: '36px', objectFit: 'contain', borderRadius: '6px' }} onError={(e) => { e.target.style.display = 'none'; }} />
                     <div className="sidebar-logo-text" style={{ display: settings.companyName ? 'block' : 'none' }}>{settings.companyName}</div>

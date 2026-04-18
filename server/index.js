@@ -144,9 +144,16 @@ app.post('/api/login', (req, res) => {
     res.status(401).json({ error: 'Invalid credentials' });
 });
 
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        dbConnected: !!db, 
+        message: db ? 'Cloud Database Connected' : 'DATABASE NOT CONFIGURED ON SERVER' 
+    });
+});
+
 // ----- Invoices -----
 app.get('/api/invoices', authenticate, async (req, res) => {
-    if(!db) return res.json([]);
+    if(!db) return res.status(503).json({ error: 'Database not configured on server. Check Render environment variables.' });
     try {
         const snapshot = await db.collection('invoices')
             .where('userId', '==', req.user.uid)
@@ -161,7 +168,7 @@ app.get('/api/invoices', authenticate, async (req, res) => {
 });
 
 app.post('/api/invoices', authenticate, async (req, res) => {
-    if(!db) return res.json({ success: true, invoice: req.body });
+    if(!db) return res.status(503).json({ error: 'Database not configured on server. Data was NOT saved to cloud.' });
     const invoice = { ...req.body, userId: req.user.uid, updatedAt: new Date(), createdAt: new Date() };
     
     try {
@@ -176,7 +183,7 @@ app.post('/api/invoices', authenticate, async (req, res) => {
 
 // ----- Clients -----
 app.get('/api/clients', authenticate, async (req, res) => {
-    if(!db) return res.json([]);
+    if(!db) return res.status(503).json({ error: 'Database not configured on server.' });
     try {
         const snapshot = await db.collection('clients')
             .where('userId', '==', req.user.uid)
@@ -191,7 +198,7 @@ app.get('/api/clients', authenticate, async (req, res) => {
 });
 
 app.post('/api/clients', authenticate, async (req, res) => {
-    if(!db) return res.json({ success: true, client: req.body });
+    if(!db) return res.status(503).json({ error: 'Database not configured on server. Data was NOT saved to cloud.' });
     const client = { ...req.body, userId: req.user.uid, updatedAt: new Date(), createdAt: new Date() };
     try {
         const docRef = db.collection('clients').doc(String(client.id));
@@ -205,7 +212,7 @@ app.post('/api/clients', authenticate, async (req, res) => {
 
 // ----- Settings -----
 app.get('/api/settings', authenticate, async (req, res) => {
-    if(!db) return res.json({});
+    if(!db) return res.status(503).json({ error: 'Database not configured on server.' });
     try {
         const doc = await db.collection('settings').doc(req.user.uid).get();
         res.json(doc.exists ? doc.data() : {});
@@ -216,7 +223,7 @@ app.get('/api/settings', authenticate, async (req, res) => {
 });
 
 app.put('/api/settings', authenticate, async (req, res) => {
-    if(!db) return res.json({ success: true, settings: req.body });
+    if(!db) return res.status(503).json({ error: 'Database not configured on server. Settings NOT saved to cloud.' });
     try {
         const settings = { ...req.body, userId: req.user.uid, updatedAt: new Date() };
         await db.collection('settings').doc(req.user.uid).set(settings, { merge: true });
