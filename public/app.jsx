@@ -45,26 +45,44 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
 }
 
 const AppProvider = ({ children }) => {
-  const [invoices, setInvoices] = useState([]);
-  const [clients, setClients] = useState([]);
+  // --- ROBUST INITIALIZATION ---
+  // We initialize from localStorage IMMEDIATELY to prevent "vanishing" state on refresh
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nex_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) { return null; }
+  });
+
+  const [invoices, setInvoices] = useState(() => {
+    if (!user) return [];
+    try {
+      const saved = localStorage.getItem(`nex_backup_inv_${user.uid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
+
+  const [clients, setClients] = useState(() => {
+    if (!user) return [];
+    try {
+      const saved = localStorage.getItem(`nex_backup_cli_${user.uid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
+
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
   const [theme, setTheme] = useState(() => localStorage.getItem('nex_theme') || 'light');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('nex_user');
-    return saved ? JSON.parse(saved) : null;
-  });
   const [authLoading, setAuthLoading] = useState(true);
   const [dbConnected, setDbConnected] = useState(true);
-  const [serverStatus, setServerStatus] = useState('online'); // 'online', 'unreachable', 'no-db'
+  const [serverStatus, setServerStatus] = useState('online');
 
-  // Monitor Auth State (Firebase & Local)
+  // Monitor Auth State
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((fbUser) => {
       if (fbUser) {
         setUser(fbUser);
       } else {
-        // Only clear if not a local user
         const localUser = localStorage.getItem('nex_user');
         if (!localUser) setUser(null);
       }
@@ -73,11 +91,19 @@ const AppProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  const logout = () => {
-    localStorage.removeItem('nex_user');
-    auth.signOut();
-    setUser(null);
-  };
+  // --- AUTO-SAVE TO LOCAL STORAGE ---
+  // This ensures state and localStorage are ALWAYS in sync instantly
+  useEffect(() => {
+    if (user && user.uid) {
+      localStorage.setItem(`nex_backup_inv_${user.uid}`, JSON.stringify(invoices));
+    }
+  }, [invoices, user]);
+
+  useEffect(() => {
+    if (user && user.uid) {
+      localStorage.setItem(`nex_backup_cli_${user.uid}`, JSON.stringify(clients));
+    }
+  }, [clients, user]);
 
   // Load from API on mount
   useEffect(() => {
@@ -105,21 +131,15 @@ const AppProvider = ({ children }) => {
         return;
       }
       
-      // Load LOCAL BACKUP first (so it's instant)
-      const localInv = localStorage.getItem(`nex_backup_inv_${user.uid}`);
-      const localCli = localStorage.getItem(`nex_backup_cli_${user.uid}`);
-      if (localInv) setInvoices(JSON.parse(localInv));
-      if (localCli) setClients(JSON.parse(localCli));
-
+      // We already loaded from localStorage in useState initialization
+      // Now we just fetch and MERGE cloud data if available
       try {
         let headers = {};
-        if (user) {
-          if (user.token) {
+        if (user.token) {
             headers['Authorization'] = `Bearer ${user.token}`;
-          } else if (typeof user.getIdToken === 'function') {
+        } else if (typeof user.getIdToken === 'function') {
             const idToken = await user.getIdToken();
             headers['Authorization'] = `Bearer ${idToken}`;
-          }
         }
         
         const [invRes, cliRes, setRes] = await Promise.all([
@@ -130,22 +150,24 @@ const AppProvider = ({ children }) => {
 
         if (invRes.ok) {
             const cloudInv = await invRes.json();
-            setInvoices(cloudInv);
-            localStorage.setItem(`nex_backup_inv_${user.uid}`, JSON.stringify(cloudInv));
+            if (cloudInv && cloudInv.length > 0) {
+               setInvoices(cloudInv); // Cloud is truth if available
+            }
         }
         if (cliRes.ok) {
             const cloudCli = await cliRes.json();
-            setClients(cloudCli);
-            localStorage.setItem(`nex_backup_cli_${user.uid}`, JSON.stringify(cloudCli));
+            if (cloudCli && cloudCli.length > 0) {
+               setClients(cloudCli);
+            }
         }
         if (setRes.ok) {
            const fetchedSettings = await setRes.json();
-           if (Object.keys(fetchedSettings).length > 0) {
-               setSettings(fetchedSettings);
+           if (fetchedSettings && Object.keys(fetchedSettings).length > 0) {
+               setSettings(prev => ({...prev, ...fetchedSettings}));
            }
         }
       } catch (e) {
-        console.error("Error fetching data:", e);
+        console.error("Cloud fetch failed, staying with local data.", e);
       } finally {
         setLoading(false);
       }
@@ -175,12 +197,11 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
-      // ALWAYS Save to Local Backup first
+      // Centralized auto-sync handles localStorage now
       setInvoices(prev => {
         const idx = prev.findIndex(inv => inv.id === invoiceObj.id);
         const updated = idx >= 0 ? [...prev] : [invoiceObj, ...prev];
         if (idx >= 0) updated[idx] = invoiceObj;
-        localStorage.setItem(`nex_backup_inv_${user.uid}`, JSON.stringify(updated));
         return updated;
       });
 
@@ -213,12 +234,8 @@ const AppProvider = ({ children }) => {
           headers['Authorization'] = `Bearer ${idToken}`;
         }
       }
-      // ALWAYS Save to Local Backup first
-      setClients(prev => {
-          const updated = [clientObj, ...prev];
-          localStorage.setItem(`nex_backup_cli_${user.uid}`, JSON.stringify(updated));
-          return updated;
-      });
+      // Centralized auto-sync handles localStorage now
+      setClients(prev => [clientObj, ...prev]);
 
       const res = await fetch('/api/clients', {
         method: 'POST',
