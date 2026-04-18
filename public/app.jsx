@@ -292,14 +292,23 @@ const Login = () => {
         setError('');
         setAuthWait(true);
         try {
-            // Check for Hardcoded Admin Credentials
-            if (email === 'Chandra' && password === '123456789') {
-                const localUser = { email: 'Chandra', uid: 'admin-chandra', isLocal: true };
-                localStorage.setItem('nex_user', JSON.stringify(localUser));
-                setUser(localUser);
-                return;
+            // First try custom backend login
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: email, password })
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('nex_user', JSON.stringify(data.user));
+                    setUser(data.user);
+                    return;
+                }
             }
 
+            // Fallback to Firebase if backend login fails (e.g. for other users)
             if (isLogin) {
                 await login(email, password);
             } else {

@@ -115,6 +115,21 @@ const authenticate = async (req, res, next) => {
 
 // ================= API ROUTES =================
 
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    const adminUser = process.env.ADMIN_USER || 'Chandra';
+    const adminPass = process.env.ADMIN_PASS || '123456789';
+
+    if (username === adminUser && password === adminPass) {
+        return res.json({ 
+            success: true, 
+            user: { email: adminUser, uid: 'admin-' + adminUser.toLowerCase(), isLocal: true } 
+        });
+    }
+    
+    res.status(401).json({ error: 'Invalid credentials' });
+});
+
 // ----- Invoices -----
 app.get('/api/invoices', authenticate, async (req, res) => {
     if(!MONGODB_URI) return res.json([]);
