@@ -214,6 +214,34 @@ app.post('/api/send-email', async (req, res) => {
     }
 });
 
+// Danger: Wipe All Data (For fresh start)
+app.delete('/api/danger-wipe', async (req, res) => {
+    const { password } = req.body;
+    if (password !== process.env.ADMIN_PASS) {
+        return res.status(403).json({ error: "Unauthorized: Incorrect admin password." });
+    }
+
+    if (!db) {
+        return res.status(503).json({ error: "Database not connected. Cannot wipe cloud data." });
+    }
+
+    try {
+        const collections = ['invoices', 'clients', 'settings'];
+        for (const coll of collections) {
+            const snapshot = await db.collection(coll).get();
+            const batch = db.batch();
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+        }
+        res.json({ success: true, message: "System reset successful. All data cleared." });
+    } catch (err) {
+        console.error("Wipe error:", err);
+        res.status(500).json({ error: "Failed to wipe database." });
+    }
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

@@ -461,6 +461,86 @@ const Login = () => {
     );
 };
 
+const Invoices = () => {
+  const { invoices } = useContext(AppContext);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+
+  const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = inv.clientName.toLowerCase().includes(search.toLowerCase()) || inv.invoiceNo.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter = filter === 'all' || inv.status.toLowerCase() === filter.toLowerCase();
+    return matchesSearch && matchesFilter;
+  });
+
+  return (
+    <div className="page-content">
+      <div className="flex-row justify-between mb-8">
+          <h1 style={{ fontWeight: 800 }}>Invoice Database</h1>
+          <div className="flex-row gap-4">
+              <div style={{ width: '240px' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Search invoice or client..." 
+                    value={search} 
+                    onChange={e => setSearch(e.target.value)} 
+                  />
+              </div>
+              <select 
+                className="form-input" 
+                style={{ width: '150px' }} 
+                value={filter} 
+                onChange={e => setFilter(e.target.value)}
+              >
+                  <option value="all">All Status</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Pending">Pending</option>
+              </select>
+          </div>
+      </div>
+
+      <Card>
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Client Name</th>
+                <th>Invoice Date</th>
+                <th>Due Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th width="100">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredInvoices.length === 0 ? (
+                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '48px' }} className="text-secondary">No invoices found matching your criteria.</td></tr>
+              ) : filteredInvoices.map(inv => (
+                <tr key={inv.id}>
+                  <td style={{ fontWeight: 600 }}>{inv.invoiceNo}</td>
+                  <td style={{ fontWeight: 600 }}>{inv.clientName}</td>
+                  <td className="text-secondary">{inv.invoiceDate}</td>
+                  <td className="text-secondary">{inv.dueDate}</td>
+                  <td>₹{inv.total.toLocaleString()}</td>
+                  <td>
+                    <span className={`badge badge-${inv.status.toLowerCase()}`}>
+                      {inv.status}
+                    </span>
+                  </td>
+                  <td>
+                      <Button variant="secondary" style={{ height: 32, padding: '0 12px' }}>View</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 // ==== VIEWS ====
 
 const Dashboard = () => {
@@ -471,11 +551,19 @@ const Dashboard = () => {
   
   return (
     <div className="page-content">
-      <h2 style={{ marginBottom: 24 }}>Dashboard</h2>
+      <div className="flex-row justify-between mb-8">
+          <div>
+              <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>Overview</h1>
+              <p className="text-secondary">Track your business performance and client history.</p>
+          </div>
+          <div className="flex-row gap-4">
+              <span className="badge badge-paid">Live Sync Active</span>
+          </div>
+      </div>
       
-      <div className="grid-cards">
+      <div className="grid-cards mb-8">
         <Card className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
+          <div className="stat-icon">
             <i data-lucide="indian-rupee"></i>
           </div>
           <div className="stat-info">
@@ -484,17 +572,17 @@ const Dashboard = () => {
           </div>
         </Card>
         <Card className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+          <div className="stat-icon" style={{ color: 'var(--warning)' }}>
             <i data-lucide="clock"></i>
           </div>
           <div className="stat-info">
-            <div className="form-label">Pending Payments</div>
+            <div className="form-label">Pending</div>
             <div className="stat-val">₹{pendingAmount.toLocaleString()}</div>
           </div>
         </Card>
         <Card className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--primary-hover)', color: 'white' }}>
-            <i data-lucide="file-text"></i>
+          <div className="stat-icon" style={{ color: 'var(--primary-color)' }}>
+            <i data-lucide="file-check"></i>
           </div>
           <div className="stat-info">
             <div className="form-label">Total Invoices</div>
@@ -502,49 +590,84 @@ const Dashboard = () => {
           </div>
         </Card>
         <Card className="stat-card">
-          <div className="stat-icon" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+          <div className="stat-icon" style={{ color: 'var(--success)' }}>
             <i data-lucide="users"></i>
           </div>
           <div className="stat-info">
-            <div className="form-label">Total Clients</div>
+            <div className="form-label">Active Clients</div>
             <div className="stat-val">{clients.length}</div>
           </div>
         </Card>
       </div>
 
-      <Card>
-        <h3 style={{ marginBottom: 16 }}>Recent Invoices</h3>
-        {invoices.length === 0 ? <p className="text-secondary">No invoices yet.</p> : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>No.</th>
-                  <th>Client</th>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.slice(0, 5).map(inv => (
-                  <tr key={inv.id}>
-                    <td>{inv.invoiceNo}</td>
-                    <td>{inv.clientName}</td>
-                    <td>{inv.invoiceDate}</td>
-                    <td>₹{inv.total.toLocaleString()}</td>
-                    <td>
-                      <span className={`badge badge-${inv.status.toLowerCase()}`}>
-                        {inv.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '32px' }}>
+          <Card>
+            <div className="flex-row justify-between mb-6">
+                <h3 style={{ fontSize: '1.25rem' }}>Recent Invoices</h3>
+                <Button variant="secondary" onClick={() => window.setActiveTab('invoices')}>View All</Button>
+            </div>
+            {invoices.length === 0 ? <p className="text-secondary">No invoices yet.</p> : (
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Client</th>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices.slice(0, 8).map(inv => (
+                      <tr key={inv.id}>
+                        <td style={{ fontWeight: 600 }}>{inv.clientName}</td>
+                        <td className="text-secondary">{inv.invoiceDate}</td>
+                        <td>₹{inv.total.toLocaleString()}</td>
+                        <td>
+                          <span className={`badge badge-${inv.status.toLowerCase()}`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+              <h3 className="mb-6">System Status</h3>
+              <div className="flex-col gap-4">
+                  <div className="activity-item">
+                      <div className="activity-dot"></div>
+                      <div>
+                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Cloud Storage Connected</p>
+                          <small className="text-secondary">Real-time persistence enabled</small>
+                      </div>
+                  </div>
+                  <div className="activity-item">
+                      <div className="activity-dot" style={{ background: 'var(--success)' }}></div>
+                      <div>
+                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Email Service Ready</p>
+                          <small className="text-secondary">SMTP server is operational</small>
+                      </div>
+                  </div>
+                  <div className="activity-item">
+                      <div className="activity-dot" style={{ background: 'var(--warning)' }}></div>
+                      <div>
+                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Local Backup Safe</p>
+                          <small className="text-secondary">Browser cache is up to date</small>
+                      </div>
+                  </div>
+              </div>
+
+              <div style={{ marginTop: '32px', padding: '20px', background: 'var(--sidebar-active)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)', marginBottom: '8px' }}>PRO TIP</p>
+                  <p style={{ fontSize: '0.9rem', lineHeight: 1.5 }}>View detailed history for any client by visiting the <strong>Clients</strong> tab and clicking "View Profile".</p>
+              </div>
+          </Card>
+      </div>
     </div>
   );
 };
@@ -553,6 +676,7 @@ const Clients = () => {
   const { clients, invoices, saveClient } = useContext(AppContext);
   const [newClient, setNewClient] = useState({ name: '', business: '', email: '', phone: '', address: '', isRecurring: false, recurringAmount: 500 });
   const [selectedClient, setSelectedClient] = useState(null);
+  const [search, setSearch] = useState("");
 
   const addClient = () => {
     if(!newClient.name) return;
@@ -565,137 +689,263 @@ const Clients = () => {
     return invoices.filter(inv => inv.clientName === selectedClient.name);
   }, [selectedClient, invoices]);
 
+  const filteredClients = clients.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase()) || 
+    c.business.toLowerCase().includes(search.toLowerCase())
+  );
+
   if (selectedClient) {
+    const totalBilled = clientInvoices.reduce((a, b) => a + b.total, 0);
+    const totalPaid = clientInvoices.filter(i => i.status === 'Paid').reduce((a, b) => a + b.total, 0);
+    const balanceDue = clientInvoices.reduce((a, b) => a + b.balanceDue, 0);
+
     return (
         <div className="page-content">
-            <div className="flex-row justify-between mb-6">
+            <div className="flex-row justify-between mb-8">
                 <div className="flex-row gap-4">
-                    <Button variant="secondary" onClick={() => setSelectedClient(null)} icon="arrow-left">Back</Button>
-                    <h2>History for {selectedClient.name}</h2>
+                    <Button variant="secondary" onClick={() => setSelectedClient(null)}><i data-lucide="arrow-left"></i> Back</Button>
+                    <h1 style={{ fontWeight: 800 }}>{selectedClient.name} Profile</h1>
+                </div>
+                <div className="flex-row gap-2">
+                    <Button variant="primary" onClick={() => { window.setActiveTab('create'); }}><i data-lucide="plus"></i> New Bill</Button>
                 </div>
             </div>
 
-            <div className="grid-cards mb-6">
+            <div className="grid-cards mb-8">
                 <Card className="stat-card">
                     <div className="stat-info">
-                        <div className="form-label">Total Bills</div>
+                        <div className="form-label">Total Invoices</div>
                         <div className="stat-val">{clientInvoices.length}</div>
                     </div>
                 </Card>
                 <Card className="stat-card">
                     <div className="stat-info">
                         <div className="form-label">Total Billed</div>
-                        <div className="stat-val">₹{clientInvoices.reduce((a, b) => a + b.total, 0).toLocaleString()}</div>
+                        <div className="stat-val">₹{totalBilled.toLocaleString()}</div>
                     </div>
                 </Card>
                 <Card className="stat-card">
-                    <div className="stat-info">
-                        <div className="form-label">Balance Due</div>
-                        <div className="stat-val text-danger">₹{clientInvoices.reduce((a, b) => a + b.balanceDue, 0).toLocaleString()}</div>
+                    <div className="stat-info" style={{ color: 'var(--success)' }}>
+                        <div className="form-label">Total Paid</div>
+                        <div className="stat-val">₹{totalPaid.toLocaleString()}</div>
+                    </div>
+                </Card>
+                <Card className="stat-card">
+                    <div className="stat-info" style={{ color: 'var(--danger)' }}>
+                        <div className="form-label">Outstanding</div>
+                        <div className="stat-val">₹{balanceDue.toLocaleString()}</div>
                     </div>
                 </Card>
             </div>
 
-            <Card>
-                <h3 className="mb-4">Bill History</h3>
-                <div className="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Invoice No</th>
-                                <th>Date</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                                <th>Balance Due</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {clientInvoices.length === 0 ? (
-                                <tr><td colSpan="5" style={{textAlign: 'center', padding: '32px'}}>No bill history found for this client.</td></tr>
-                            ) : clientInvoices.map(inv => (
-                                <tr key={inv.id}>
-                                    <td>{inv.invoiceNo}</td>
-                                    <td>{inv.invoiceDate}</td>
-                                    <td>₹{inv.total.toLocaleString()}</td>
-                                    <td><span className={`badge badge-${inv.status.toLowerCase()}`}>{inv.status}</span></td>
-                                    <td>₹{inv.balanceDue.toLocaleString()}</td>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '32px' }}>
+                <Card style={{ alignSelf: 'start' }}>
+                    <h3 className="mb-6">Client Details</h3>
+                    <div className="flex-col gap-6">
+                        <div>
+                            <label className="form-label">Business Name</label>
+                            <p style={{ fontWeight: 600 }}>{selectedClient.business || 'Individual'}</p>
+                        </div>
+                        <div>
+                            <label className="form-label">Contact Email</label>
+                            <p style={{ fontWeight: 600 }}>{selectedClient.email}</p>
+                        </div>
+                        <div>
+                            <label className="form-label">Phone Number</label>
+                            <p style={{ fontWeight: 600 }}>{selectedClient.phone || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <label className="form-label">Mailing Address</label>
+                            <p style={{ fontWeight: 600 }}>{selectedClient.address || 'N/A'}</p>
+                        </div>
+                        <Button variant="secondary" className="w-full">Edit Details</Button>
+                    </div>
+                </Card>
+
+                <Card>
+                    <h3 className="mb-6">Transaction History</h3>
+                    <div className="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Bill No</th>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+                            </thead>
+                            <tbody>
+                                {clientInvoices.length === 0 ? (
+                                    <tr><td colSpan="5" style={{textAlign: 'center', padding: '48px'}} className="text-secondary">No transactions recorded yet.</td></tr>
+                                ) : clientInvoices.map(inv => (
+                                    <tr key={inv.id}>
+                                        <td style={{ fontWeight: 600 }}>{inv.invoiceNo}</td>
+                                        <td>{inv.invoiceDate}</td>
+                                        <td>₹{inv.total.toLocaleString()}</td>
+                                        <td><span className={`badge badge-${inv.status.toLowerCase()}`}>{inv.status}</span></td>
+                                        <td><Button variant="secondary" style={{ height: '32px', padding: '0 12px' }}>View</Button></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
         </div>
     );
   }
 
   return (
     <div className="page-content">
-      <h2 style={{ marginBottom: 24 }}>Clients</h2>
-      <Card style={{ marginBottom: 32 }}>
-        <h3>Add New Client</h3>
-        <div className="form-grid-2-even">
-          <Input label="Client Name" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
-          <Input label="Business Name" value={newClient.business} onChange={e => setNewClient({...newClient, business: e.target.value})} />
-          <Input label="Email" type="email" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} />
-          <Input label="Phone" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} />
-          <div style={{ gridColumn: '1 / -1' }}>
-            <Input label="Address" type="textarea" value={newClient.address} onChange={e => setNewClient({...newClient, address: e.target.value})} />
+      <div className="flex-row justify-between mb-8">
+          <h1 style={{ fontWeight: 800 }}>Clients</h1>
+          <div style={{ width: '300px' }}>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Search clients..." 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+              />
           </div>
-        </div>
-        <Button onClick={addClient} style={{ marginTop: 16 }}>Add Client</Button>
-      </Card>
+      </div>
 
-      <Card>
-        <h3 style={{ marginBottom: 16 }}>Client List</h3>
-        <div className="table-container">
-          <table>
-            <thead><tr><th>Name</th><th>Business</th><th>Email</th><th>Phone</th><th width="120">Actions</th></tr></thead>
-            <tbody>
-              {clients.map(c => (
-                <tr key={c.id}>
-                   <td>{c.name}</td>
-                   <td>{c.business}</td>
-                   <td>{c.email}</td>
-                   <td>{c.phone}</td>
-                   <td>
-                       <Button variant="secondary" onClick={() => setSelectedClient(c)}>View History</Button>
-                   </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
+          <Card style={{ alignSelf: 'start' }}>
+            <h3 className="mb-6">Quick Add</h3>
+            <div className="flex-col gap-4">
+              <Input label="Full Name" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
+              <Input label="Business Name" value={newClient.business} onChange={e => setNewClient({...newClient, business: e.target.value})} />
+              <Input label="Email" type="email" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} />
+              <Input label="Phone" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} />
+              <Input label="Full Address" type="textarea" value={newClient.address} onChange={e => setNewClient({...newClient, address: e.target.value})} />
+              <Button variant="primary" className="w-full" onClick={addClient}>Add Client Record</Button>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="mb-6">Client Database</h3>
+            <div className="table-container">
+              <table>
+                <thead><tr><th>Profile</th><th>Business</th><th>Email</th><th width="140">Actions</th></tr></thead>
+                <tbody>
+                  {filteredClients.length === 0 ? (
+                      <tr><td colSpan="4" style={{ textAlign: 'center', padding: '48px' }} className="text-secondary">No clients found matching your search.</td></tr>
+                  ) : filteredClients.map(c => (
+                    <tr key={c.id}>
+                       <td style={{ fontWeight: 600 }}>{c.name}</td>
+                       <td className="text-secondary">{c.business || '--'}</td>
+                       <td>{c.email}</td>
+                       <td>
+                           <Button variant="secondary" onClick={() => setSelectedClient(c)}>View Profile</Button>
+                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+      </div>
     </div>
   );
 }
 
 const SettingsView = () => {
-  const { settings, saveSettings } = useContext(AppContext);
+  const { settings, saveSettings, user } = useContext(AppContext);
+  const [wipePass, setWipePass] = useState("");
+  const [isWiping, setIsWiping] = useState(false);
+
   const handleSettingsChange = (field, val) => {
     saveSettings({ [field]: val });
   };
 
+  const handleDangerWipe = async () => {
+      if(!wipePass) return alert("Enter Admin Password to continue.");
+      if(!confirm("CRITICAL WARNING: This will permanently delete ALL clients and ALL invoices from the cloud and local memory. Your history will be gone forever. Continue?")) return;
+      
+      setIsWiping(true);
+      try {
+          let headers = { 'Content-Type': 'application/json' };
+          if (user) {
+              if (user.token) {
+                  headers['Authorization'] = `Bearer ${user.token}`;
+              } else if (typeof user.getIdToken === 'function') {
+                  const idToken = await user.getIdToken();
+                  headers['Authorization'] = `Bearer ${idToken}`;
+              }
+          }
+
+          const res = await fetch('/api/danger-wipe', {
+              method: 'DELETE',
+              headers,
+              body: JSON.stringify({ password: wipePass })
+          });
+          const result = await res.json();
+          if (res.ok) {
+              localStorage.clear();
+              alert("System Reset Complete. Refreshing app...");
+              window.location.reload();
+          } else {
+              alert("Reset Failed: " + (result.error || "Wrong Password"));
+          }
+      } catch (err) {
+          alert("Error: " + err.message);
+      } finally {
+          setIsWiping(false);
+      }
+  };
+
   return (
     <div className="page-content">
-      <h2 style={{ marginBottom: 24 }}>Settings</h2>
+      <h1 style={{ fontWeight: 800, marginBottom: '32px' }}>Settings</h1>
+      
       <div className="settings-grid">
         <Card>
-           <h3 className="mb-4">Company Details</h3>
-           <Input label="Company Name" value={settings.companyName} onChange={e => handleSettingsChange('companyName', e.target.value)} />
-           <Input label="Tagline" value={settings.tagline} onChange={e => handleSettingsChange('tagline', e.target.value)} />
-           <Input label="UDYAM / Registration No" value={settings.udyam} onChange={e => handleSettingsChange('udyam', e.target.value)} />
-           <Input label="Phone" value={settings.phone} onChange={e => handleSettingsChange('phone', e.target.value)} />
-           <Input label="Email" value={settings.email} onChange={e => handleSettingsChange('email', e.target.value)} />
-           <Input label="Website" value={settings.website} onChange={e => handleSettingsChange('website', e.target.value)} />
+           <h3 className="mb-6">Company Identity</h3>
+           <div className="flex-col gap-4">
+               <Input label="Legal Company Name" value={settings.companyName} onChange={e => handleSettingsChange('companyName', e.target.value)} />
+               <Input label="Professional Tagline" value={settings.tagline} onChange={e => handleSettingsChange('tagline', e.target.value)} />
+               <Input label="UDYAM / Registration Number" value={settings.udyam} onChange={e => handleSettingsChange('udyam', e.target.value)} />
+               <div className="form-grid-2">
+                   <Input label="Support Phone" value={settings.phone} onChange={e => handleSettingsChange('phone', e.target.value)} />
+                   <Input label="Public Email" value={settings.email} onChange={e => handleSettingsChange('email', e.target.value)} />
+               </div>
+               <Input label="Website URL" value={settings.website} onChange={e => handleSettingsChange('website', e.target.value)} />
+           </div>
         </Card>
-        <Card>
-           <h3 className="mb-4">Invoice Defaults</h3>
-           <Input label="Default GST (%)" type="number" value={settings.gstPercent} onChange={e => handleSettingsChange('gstPercent', Number(e.target.value))} />
-           <Input label="Signature Text" type="textarea" value={settings.signatureText} onChange={e => handleSettingsChange('signatureText', e.target.value)} />
-           <Input label="Terms & Conditions" type="textarea" value={settings.terms} onChange={e => handleSettingsChange('terms', e.target.value)} />
-        </Card>
+
+        <div className="flex-col gap-8">
+            <Card>
+               <h3 className="mb-6">Billing Parameters</h3>
+               <div className="flex-col gap-4">
+                   <Input label="Default GST Percentage (%)" type="number" value={settings.gstPercent} onChange={e => handleSettingsChange('gstPercent', Number(e.target.value))} />
+                   <Input label="Professional Signature Text" type="textarea" value={settings.signatureText} onChange={e => handleSettingsChange('signatureText', e.target.value)} />
+                   <Input label="Standard Terms & Conditions" type="textarea" value={settings.terms} onChange={e => handleSettingsChange('terms', e.target.value)} />
+               </div>
+            </Card>
+
+            <Card style={{ border: '1px solid var(--danger)', background: 'var(--danger-bg)' }}>
+                <h3 className="mb-4" style={{ color: 'var(--danger)' }}>System Reset (Danger Zone)</h3>
+                <p style={{ fontSize: '0.9rem', marginBottom: '16px' }}>Permanently wipe all database history for a complete fresh start.</p>
+                <div className="flex-row gap-2">
+                    <input 
+                        type="password" 
+                        className="form-input" 
+                        placeholder="Enter Admin Password" 
+                        value={wipePass} 
+                        onChange={e => setWipePass(e.target.value)} 
+                    />
+                    <Button 
+                        variant="danger" 
+                        onClick={handleDangerWipe}
+                        disabled={isWiping}
+                    >
+                        {isWiping ? 'Wiping...' : 'Reset Everything'}
+                    </Button>
+                </div>
+            </Card>
+        </div>
       </div>
     </div>
   );
@@ -1120,12 +1370,18 @@ const App = () => {
    const renderView = () => {
        switch(currentView) {
            case 'dashboard': return <Dashboard />;
+           case 'invoices': return <Invoices />;
            case 'create': return <CreateInvoice />;
            case 'clients': return <Clients />;
            case 'settings': return <SettingsView />;
            default: return <Dashboard />;
        }
    };
+
+   // Attach to global for cross-component routing
+   useEffect(() => {
+       window.setActiveTab = (tab) => setCurrentView(tab);
+   }, []);
 
     if (!user) {
         return <Login />;
@@ -1157,16 +1413,19 @@ const App = () => {
                 </div>
                 <nav className="nav-links" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                     <a className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false); }}>
-                        <i data-lucide="layout-dashboard"></i> Dashboard
+                        <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
+                    </a>
+                    <a className={`nav-item ${currentView === 'invoices' ? 'active' : ''}`} onClick={() => { setCurrentView('invoices'); setMobileMenuOpen(false); }}>
+                        <i data-lucide="file-text"></i> <span>Invoice History</span>
                     </a>
                     <a className={`nav-item ${currentView === 'create' ? 'active' : ''}`} onClick={() => { setCurrentView('create'); setMobileMenuOpen(false); }}>
-                        <i data-lucide="plus-circle"></i> Create Invoice
+                        <i data-lucide="plus-circle"></i> <span>New Invoice</span>
                     </a>
                     <a className={`nav-item ${currentView === 'clients' ? 'active' : ''}`} onClick={() => { setCurrentView('clients'); setMobileMenuOpen(false); }}>
-                        <i data-lucide="users"></i> Clients
+                        <i data-lucide="users"></i> <span>Client Manager</span>
                     </a>
                     <a className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => { setCurrentView('settings'); setMobileMenuOpen(false); }}>
-                        <i data-lucide="settings"></i> Settings
+                        <i data-lucide="settings"></i> <span>Settings</span>
                     </a>
                     <div style={{ flex: 1 }}></div>
                     <a className="nav-item text-danger" onClick={logout} style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
@@ -1199,8 +1458,11 @@ const App = () => {
                         <i data-lucide="menu"></i>
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, textTransform: 'capitalize' }}>
+                            {currentView === 'create' ? 'Build New Invoice' : currentView}
+                        </h1>
+                        <span className="text-secondary" style={{ fontSize: '0.85rem', opacity: 0.6 }}>|</span>
                         <span className="text-secondary" style={{ fontSize: '0.85rem' }}>{user.email}</span>
-                        <h1 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Overview</h1>
                     </div>
                     <button className="btn-icon" onClick={toggleTheme}>
                         <i data-lucide={theme === 'dark' ? 'sun' : 'moon'}></i>
